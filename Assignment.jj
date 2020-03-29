@@ -1,0 +1,451 @@
+PARSER_BEGIN(Assignment)
+
+import java.util.*;
+
+public class Assignment{
+
+  static Boolean mainExists = false;
+  static int lineNumber = 0;
+
+  static Map<String, List<String>> functionsMap = new HashMap<String, List<String>>();
+  static Map<String, Integer> callExists = new HashMap<String, Integer>();
+  static List<String> postFix = new ArrayList<String>();
+  static Stack<String> stack = new Stack<String>();
+  static Stack<Integer> calc = new Stack<Integer>();
+  static Stack<ArrayList<String>> functionCalls = new Stack<ArrayList<String>>();
+
+  public static void main(String args [])   {
+
+    try {
+      Assignment parser = new Assignment(System.in);
+      parser.StartAnalyzer();
+      System.out.println("PASS");
+    } catch (ParseException e) {
+      System.out.println("FAIL");
+      analyseError(e);
+    } catch(TokenMgrError e) {
+      System.out.println("FAIL");
+      System.err.println(e.getMessage());
+      System.exit(0);
+    }
+
+    expressionToString(functionsMap.get("MAIN"), null, "MAIN");
+    finishPostfix();
+    int result = calculateResult();
+
+    System.out.println(result);
+
+   }
+
+   public static void analyseError(ParseException e){
+    Token currTok = e.currentToken;
+    String message = e.toString();
+    int one = message.indexOf("Was expecting:");
+    int few = message.indexOf("Was expecting one of:");
+    String expTok="";
+    int index = 0;
+    if (one > -1){
+      index = one + 14;
+    } else if (few > -1){
+      index = few + 21;
+    }
+    int expectIndex = index;
+    Boolean token = false;
+    while (index<message.length()){
+      if (message.charAt(index)=='<'){
+        token = true;
+        index++;
+      }
+      if (message.charAt(index)=='>'){
+        token=false;
+        break;
+      }
+      if (token) {
+        expTok = expTok + message.charAt(index);
+      }
+      index++;
+    }
+
+    Token errTok = getNextToken();
+    int errLine = errTok.beginLine;
+    int errColumn = errTok.beginColumn;
+
+    if (errColumn==1){
+      System.err.println(errLine + "\nError. Keyword DEF is either missing or spelled incorrectly.");
+    } else if (expTok.equals("PARAM_NAME")){
+      System.err.println(errLine + "\nError. Function is missing a parameter.");
+    } else if (expTok.equals("FUNC_NAME")){
+      System.err.println(errLine + "\nError. Function is either missing or spelled incorrectly.");
+    } else if (e.currentToken.kind == 5){
+      System.err.println(errLine + "\nError. Function parameter is spelled incorrectly.");
+    }else if (message.indexOf("{", expectIndex) > -1 ){
+      System.err.println(errLine + "\nError. Curly brackets must open function body.");
+    } else if (message.indexOf("}", expectIndex) > -1 ){
+      System.err.println(errLine + "\nError. Curly bracets must close function body.");
+    } else if (message.indexOf(";") > -1 ){
+      System.err.println(errLine + "\nError. Semicolon must end the line.");
+    } else if (message.indexOf("\" \"", expectIndex) > -1){
+      System.err.println(errLine + "\nError. Space is missing in column " + errColumn + ".");
+    }
+    System.exit(0);
+   }
+
+   public static int calculateResult(){
+    int op1, op2;
+    for (int i=0; i<postFix.size(); i++){
+      if(postFix.get(i).matches("[0-9]+")){
+        calc.push(Integer.parseInt(postFix.get(i)));
+      }
+      if(postFix.get(i).equals("+")){
+        op1 = calc.pop();
+        op2 = calc.pop();
+        calc.push(op1+op2);
+      }
+      if(postFix.get(i).equals("*")){
+        op1 = calc.pop();
+        op2 = calc.pop();
+        calc.push(op1*op2);
+      }
+    }
+    return calc.pop();
+   }
+
+   public static void expressionToString(List<String> expression, List<String> arg, String current){
+
+    if (arg != null){
+      int argSize = arg.size();
+      List<String> replacedArg = new ArrayList<String>();
+      for (int i=0; i<expression.size(); i++){
+        replacedArg.add(expression.get(i));
+        if (expression.get(i).matches("[a-z]+")){
+          replacedArg.remove(replacedArg.size()-1);
+          if (argSize>1){
+            replacedArg.add("(");
+          }
+          for (int j=0; j<argSize; j++){
+            replacedArg.add(arg.get(j));
+          }
+          if (argSize>1){
+            replacedArg.add(")");
+          }
+        }
+      }
+      expressionToString(replacedArg,null,current);
+
+    } else {
+      for(int i=0; i<expression.size(); i++){
+
+        if (expression.get(i).matches("[A-Z]+")){
+          ArrayList<String> call = new ArrayList<String>();
+          call.add(current);
+          call.add(expression.get(i));
+          if(functionCalls.empty()){
+            functionCalls.push(call);
+          } else {
+            if (functionCalls.search(call) > -1){
+              System.out.println("DIVERGENCE");
+              System.exit(0);
+            } else {
+              functionCalls.push(call);
+            }
+          }
+
+          List<String> argument = new ArrayList<String>();
+          String function = expression.get(i);
+          int openbrac = 1;
+          updatePostfix("(");
+          int j=i+2;
+          while(true){
+            if (expression.get(j).equals(")")){
+              openbrac--;
+              if (openbrac==0){
+                break;
+              }
+            }
+            if (expression.get(j).equals("(")){
+              openbrac++;
+            }
+            argument.add(expression.get(j));
+            j++;
+          }
+          expressionToString(functionsMap.get(function), argument, function);
+          i=j;
+          updatePostfix(")");
+          functionCalls.pop();
+
+        } else {
+          updatePostfix(expression.get(i));
+        }
+      }
+    }
+   }
+
+   public static void finishPostfix(){
+    while(!stack.empty()){
+      postFix.add(stack.pop());
+    }
+   }
+
+   public static void updatePostfix(String value){
+
+     if (value.matches("[0-9]+")){
+       postFix.add(value);
+     } else {
+      if (value.equals("+") || value.equals("*")){
+
+        if (stack.empty()){
+          stack.push(value);
+
+        } else if (value.equals("*")){
+          stack.push(value);
+
+        } else if (value.equals("+")){
+
+          if (stack.peek().equals("+") || stack.peek().equals("(")){
+            stack.push(value);
+          } else {
+            while(!stack.empty()){
+              if (stack.peek().equals("*")){
+                postFix.add(stack.pop());
+              } else {
+                stack.push(value);
+                break;
+              }
+            }
+          }
+        }
+
+      } else if (value.equals("(")){
+        stack.push(value);
+      } else if (value.equals(")")){
+        while(!stack.empty()){
+          if (stack.peek().equals("(")){
+            stack.pop();
+            break;
+          } else {
+            postFix.add(stack.pop());
+          }
+        }
+      }
+     }
+
+   }
+
+}
+
+PARSER_END(Assignment)
+
+TOKEN :{<EOL:"\n"|"\r"|"\r\n">}
+TOKEN: {
+  <DEF_TOKEN: "DEF"> |
+  <SPACE: " "> |
+  <MAIN_TOKEN: "MAIN">
+}
+
+TOKEN: {
+  <PARAM_NAME: (["a"-"z"])+> |
+  <FUNC_NAME: (["A"-"Z"])+> |
+  <NUM: (["0"-"9"])+> |
+  <ARG_NAME: (["a"-"z"])+>
+}
+
+boolean emptyFile():
+{}
+{
+  <EOF> {return true;}
+  |
+  {return false;}
+}
+
+void StartAnalyzer(): { Token err; }
+{
+  {
+    if (emptyFile()) {
+      customException("0\nFile is empty.");
+    }
+  }
+
+  (
+    {lineNumber++;}
+
+    <DEF_TOKEN>
+
+    <SPACE>
+
+    ( MainMethod() | Method() )
+
+    <EOL>
+
+  )* <EOF>
+
+  {
+
+    if (!mainExists){
+      customException("0\nError. Function MAIN is not defined.");
+    }
+
+    for (String call : callExists.keySet()){
+      if (call.equals("MAIN")){
+        customException("\nError. MAIN function cannot be called.");
+      }
+      if(!functionsMap.containsKey(call)){
+        int lineNum = callExists.get(call);
+        customException(lineNum + "\nError. Function call " + call + " does not exist.");
+      }
+    }
+    callExists.clear();
+  }
+}
+
+void MainMethod(): {Token mainT;}
+{
+  {
+    if (mainExists) {
+      customException(lineNumber + "\nError. Function MAIN is defined more than once.");
+    } else {
+      mainExists = true;
+    }
+  }
+
+  mainT=<MAIN_TOKEN> {functionsMap.put(mainT.image, new ArrayList<String>());}
+
+  <SPACE>
+
+  (
+    "{"
+    |
+    <PARAM_NAME> {customException(lineNumber + "\nError. MAIN function cannot have any parameters.");}
+  )
+
+  <SPACE>
+
+  (
+    MethodBody(mainT, mainT)
+    |
+    {customException(lineNumber + "\nError. Function body cannot be empty.");}
+  )
+
+  <SPACE> "}" <SPACE> ";"
+
+}
+
+
+void Method(): { Token parameter, funcName; }
+{
+  funcName = <FUNC_NAME>
+
+  {
+    if (functionsMap.containsKey(funcName.image)){
+      customException(lineNumber + "\nError. Function " + funcName.image + " is defined more than once.");
+    } else {
+      functionsMap.put(funcName.image, new ArrayList<String>());
+    }
+  }
+
+  <SPACE>
+  (
+    parameter = <PARAM_NAME>
+  )
+  <SPACE> "{" <SPACE>
+
+  (
+    MethodBody(parameter, funcName)
+    |
+    {customException(lineNumber + "\nError. Function body cannot be empty.");}
+  )
+
+  <SPACE> "}" <SPACE> ";"
+}
+
+
+void MethodBody(Token parameter, Token funcName): {Token arg, num, callname, open, add, mul, close;}
+{
+  (
+    num = <NUM> {updateMap(funcName, num);}
+
+    |
+
+    arg = <PARAM_NAME>
+
+    {
+      if (!arg.image.equals(parameter.image)) {
+        if (parameter.image.equals("MAIN")){
+          customException(lineNumber + "\nError. MAIN function cannot have any parameters.");
+        }
+        customException(lineNumber + "\nError. Argument has to be the same as parameter of the method.");
+      }
+    }
+
+    {updateMap(funcName, arg);}
+
+    |
+
+    callname = <FUNC_NAME>
+
+    open = "(" { updateMap(funcName, callname); updateMap(funcName, open); updateCall(callname, lineNumber);}
+      (
+        LOOKAHEAD(2)
+        arg = <PARAM_NAME> {updateMap(funcName, arg);}
+
+        {
+          if (!arg.image.equals(parameter.image)) {
+            if (parameter.image.equals("MAIN")){
+              throw new ParseException(lineNumber + "\nError. MAIN function cannot have any parameters.");
+            }
+            throw new ParseException(lineNumber + "\nError. Argument has to be the same as parameter of the method.");
+          }
+        }
+
+        |
+
+        MethodBody(parameter, funcName)
+      )
+
+    (
+      (
+        add = "+" {updateMap(funcName, add);}
+        |
+        mul = "*" {updateMap(funcName, mul);}
+      )
+
+      MethodBody(parameter, funcName)
+    )*
+
+    close = ")" {updateMap(funcName, close);}
+  )
+
+  (
+    LOOKAHEAD(2) (add = "+" {updateMap(funcName, add);}
+    |
+    mul = "*" {updateMap(funcName, mul);}) MethodBody(parameter, funcName)
+  )*
+
+}
+
+void updateMap(Token name, Token val): {}
+{
+  {
+    functionsMap.get(name.image).add(val.image);
+  }
+}
+
+void updateCall(Token name, int lineNumber): {}
+{
+  {
+    if (callExists.isEmpty()){
+      callExists.put(name.image, lineNumber);
+      return;
+    } else if (!callExists.containsKey(name.image)){
+      callExists.put(name.image, lineNumber);
+    }
+  }
+}
+
+void customException(String message): {}
+{
+  {
+    System.out.println("FAIL");
+    System.err.println(message);
+    System.exit(0);
+  }
+}

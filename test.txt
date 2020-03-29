@@ -1,0 +1,3 @@
+DEF LOH xy { xy+PLUS(14) } ;
+DEF MAIN { LOH(3*2)+9 } ;
+DEF PLUS y { y+9 } ;
