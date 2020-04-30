@@ -1,239 +1,266 @@
 PARSER_BEGIN(Assignment)
-
 import java.util.*;
 
-public class Assignment{
+public class Assignment {
 
-  static Boolean mainExists = false;
-  static int lineNumber = 0;
+    static Boolean mainExists = false;
+    static int lineNumber = 0;
+    
+    // Data structures to be used for storing parsed functions and their bodies,
+    // for evaluation of the program. functionsMap stores function name and its body.
+    // callExists stores function call. List of Strings postFix used to store program's
+    // arithmetic postfix expression. stack is a helping data structure to create
+    // postfix expression. calc is a stack for evaluating postfix expression. 
+    // functionCalls used to identify DIVERGENCE in the program.
 
-  static Map<String, List<String>> functionsMap = new HashMap<String, List<String>>();
-  static Map<String, Integer> callExists = new HashMap<String, Integer>();
-  static List<String> postFix = new ArrayList<String>();
-  static Stack<String> stack = new Stack<String>();
-  static Stack<Integer> calc = new Stack<Integer>();
-  static Stack<ArrayList<String>> functionCalls = new Stack<ArrayList<String>>();
+    static Map < String, List < String >> functionsMap = new HashMap < String, List < String >> ();
+    static Map < String, Integer > callExists = new HashMap < String, Integer > ();
+    static List < String > postFix = new ArrayList < String > ();
+    static Stack < String > stack = new Stack < String > ();
+    static Stack < Integer > calc = new Stack < Integer > ();
+    static Stack < ArrayList < String >> functionCalls = new Stack < ArrayList < String >> ();
 
-  public static void main(String args [])   {
-
-    try {
-      Assignment parser = new Assignment(System.in);
-      parser.StartAnalyzer();
-      System.out.println("PASS");
-    } catch (ParseException e) {
-      System.out.println("FAIL");
-      analyseError(e);
-    } catch(TokenMgrError e) {
-      System.out.println("FAIL");
-      System.err.println(e.getMessage());
-      System.exit(0);
-    }
-
-    expressionToString(functionsMap.get("MAIN"), null, "MAIN");
-    finishPostfix();
-    int result = calculateResult();
-
-    System.out.println(result);
-
-   }
-
-   public static void analyseError(ParseException e){
-    Token currTok = e.currentToken;
-    String message = e.toString();
-    int one = message.indexOf("Was expecting:");
-    int few = message.indexOf("Was expecting one of:");
-    String expTok="";
-    int index = 0;
-    if (one > -1){
-      index = one + 14;
-    } else if (few > -1){
-      index = few + 21;
-    }
-    int expectIndex = index;
-    Boolean token = false;
-    while (index<message.length()){
-      if (message.charAt(index)=='<'){
-        token = true;
-        index++;
-      }
-      if (message.charAt(index)=='>'){
-        token=false;
-        break;
-      }
-      if (token) {
-        expTok = expTok + message.charAt(index);
-      }
-      index++;
-    }
-
-    Token errTok = getNextToken();
-    int errLine = errTok.beginLine;
-    int errColumn = errTok.beginColumn;
-
-    if (errColumn==1){
-      System.err.println(errLine + "\nError. Keyword DEF is either missing or spelled incorrectly.");
-    } else if (expTok.equals("PARAM_NAME")){
-      System.err.println(errLine + "\nError. Function is missing a parameter.");
-    } else if (expTok.equals("FUNC_NAME")){
-      System.err.println(errLine + "\nError. Function is either missing or spelled incorrectly.");
-    } else if (e.currentToken.kind == 5){
-      System.err.println(errLine + "\nError. Function parameter is spelled incorrectly.");
-    }else if (message.indexOf("{", expectIndex) > -1 ){
-      System.err.println(errLine + "\nError. Curly brackets must open function body.");
-    } else if (message.indexOf("}", expectIndex) > -1 ){
-      System.err.println(errLine + "\nError. Curly bracets must close function body.");
-    } else if (message.indexOf(";") > -1 ){
-      System.err.println(errLine + "\nError. Semicolon must end the line.");
-    } else if (message.indexOf("\" \"", expectIndex) > -1){
-      System.err.println(errLine + "\nError. Space is missing in column " + errColumn + ".");
-    }
-    System.exit(0);
-   }
-
-   public static int calculateResult(){
-    int op1, op2;
-    for (int i=0; i<postFix.size(); i++){
-      if(postFix.get(i).matches("[0-9]+")){
-        calc.push(Integer.parseInt(postFix.get(i)));
-      }
-      if(postFix.get(i).equals("+")){
-        op1 = calc.pop();
-        op2 = calc.pop();
-        calc.push(op1+op2);
-      }
-      if(postFix.get(i).equals("*")){
-        op1 = calc.pop();
-        op2 = calc.pop();
-        calc.push(op1*op2);
-      }
-    }
-    return calc.pop();
-   }
-
-   public static void expressionToString(List<String> expression, List<String> arg, String current){
-
-    if (arg != null){
-      int argSize = arg.size();
-      List<String> replacedArg = new ArrayList<String>();
-      for (int i=0; i<expression.size(); i++){
-        replacedArg.add(expression.get(i));
-        if (expression.get(i).matches("[a-z]+")){
-          replacedArg.remove(replacedArg.size()-1);
-          if (argSize>1){
-            replacedArg.add("(");
-          }
-          for (int j=0; j<argSize; j++){
-            replacedArg.add(arg.get(j));
-          }
-          if (argSize>1){
-            replacedArg.add(")");
-          }
+    public static void main(String args[]) {
+	
+        try {					// Starting the parser
+            Assignment parser = new Assignment(System.in);
+            parser.StartAnalyzer();
+            System.out.println("PASS");
+        } catch (ParseException e) {		// Catching the exceptions
+            System.out.println("FAIL");
+            analyseError(e);
+        } catch (TokenMgrError e) {
+            System.out.println("FAIL");
+            System.err.println(e.getMessage());
+            System.exit(0);
         }
-      }
-      expressionToString(replacedArg,null,current);
+	
+	// Parsed program to be expressed as an arithmetic Postfix expression
+        expressionToString(functionsMap.get("MAIN"), null, "MAIN");
+        finishPostfix();
+	
+	// Value of the Postfix expression is calculated
+        int result = calculateResult();
 
-    } else {
-      for(int i=0; i<expression.size(); i++){
+        System.out.println(result);
 
-        if (expression.get(i).matches("[A-Z]+")){
-          ArrayList<String> call = new ArrayList<String>();
-          call.add(current);
-          call.add(expression.get(i));
-          if(functionCalls.empty()){
-            functionCalls.push(call);
-          } else {
-            if (functionCalls.search(call) > -1){
-              System.out.println("DIVERGENCE");
-              System.exit(0);
-            } else {
-              functionCalls.push(call);
+    }
+
+    // Method to analyse tokens to identify specific errors
+    public static void analyseError(ParseException e) {
+        Token currTok = e.currentToken;
+        String message = e.toString();
+        int one = message.indexOf("Was expecting:");
+        int few = message.indexOf("Was expecting one of:");
+        String expTok = "";
+        int index = 0;
+        if (one > -1) {
+            index = one + 14;
+        } else if (few > -1) {
+            index = few + 21;
+        }
+        int expectIndex = index;
+        Boolean token = false;
+        while (index < message.length()) {
+            if (message.charAt(index) == '<') {
+                token = true;
+                index++;
             }
-          }
-
-          List<String> argument = new ArrayList<String>();
-          String function = expression.get(i);
-          int openbrac = 1;
-          updatePostfix("(");
-          int j=i+2;
-          while(true){
-            if (expression.get(j).equals(")")){
-              openbrac--;
-              if (openbrac==0){
+            if (message.charAt(index) == '>') {
+                token = false;
                 break;
-              }
             }
-            if (expression.get(j).equals("(")){
-              openbrac++;
+            if (token) {
+                expTok = expTok + message.charAt(index);
             }
-            argument.add(expression.get(j));
-            j++;
-          }
-          expressionToString(functionsMap.get(function), argument, function);
-          i=j;
-          updatePostfix(")");
-          functionCalls.pop();
+            index++;
+        }
+
+        Token errTok = getNextToken();
+        int errLine = errTok.beginLine;
+        int errColumn = errTok.beginColumn;
+
+        if (errColumn == 1) {
+            System.err.println(errLine + "\nError. Keyword DEF is either missing or spelled incorrectly.");
+        } else if (expTok.equals("PARAM_NAME")) {
+            System.err.println(errLine + "\nError. Function is missing a parameter.");
+        } else if (expTok.equals("FUNC_NAME")) {
+            System.err.println(errLine + "\nError. Function is either missing or spelled incorrectly.");
+        } else if (e.currentToken.kind == 5) {
+            System.err.println(errLine + "\nError. Function parameter is spelled incorrectly.");
+        } else if (message.indexOf("{", expectIndex) > -1) {
+            System.err.println(errLine + "\nError. Curly brackets must open function body.");
+        } else if (message.indexOf("}", expectIndex) > -1) {
+            System.err.println(errLine + "\nError. Curly bracets must close function body.");
+        } else if (message.indexOf(";") > -1) {
+            System.err.println(errLine + "\nError. Semicolon must end the line.");
+        } else if (message.indexOf("\" \"", expectIndex) > -1) {
+            System.err.println(errLine + "\nError. Space is missing in column " + errColumn + ".");
+        }
+        System.exit(0);
+    }
+    
+    // Method evaluating Postfix expression using postFix data structure and stack calc.
+    public static int calculateResult() {
+        int op1, op2;
+        for (int i = 0; i < postFix.size(); i++) {
+            if (postFix.get(i).matches("[0-9]+")) {
+                calc.push(Integer.parseInt(postFix.get(i)));
+            }
+            if (postFix.get(i).equals("+")) {
+                op1 = calc.pop();
+                op2 = calc.pop();
+                calc.push(op1 + op2);
+            }
+            if (postFix.get(i).equals("*")) {
+                op1 = calc.pop();
+                op2 = calc.pop();
+                calc.push(op1 * op2);
+            }
+        }
+        return calc.pop();
+    }
+
+    // Method to convert our program to arithmetic expression and to store it to postFix data structure.
+    // Where arguments passed are current - name of the function, expression - function's body, 
+    // arg - arithmetic expression as an argument passed with function call.
+    public static void expressionToString(List < String > expression, List < String > arg, String current) {
+
+        if (arg != null) {
+	    // When there is a function call, we have the arithmetic expression in the brackets of a function
+	    // call. We replace all argument instances with the arithmetic expression recieved from the call.
+            int argSize = arg.size();
+            List < String > replacedArg = new ArrayList < String > ();
+            for (int i = 0; i < expression.size(); i++) {
+                replacedArg.add(expression.get(i));
+                if (expression.get(i).matches("[a-z]+")) {
+                    replacedArg.remove(replacedArg.size() - 1);
+                    if (argSize > 1) {
+                        replacedArg.add("(");
+                    }
+                    for (int j = 0; j < argSize; j++) {
+                        replacedArg.add(arg.get(j));
+                    }
+                    if (argSize > 1) {
+                        replacedArg.add(")");
+                    }
+                }
+            }
+            expressionToString(replacedArg, null, current);
 
         } else {
-          updatePostfix(expression.get(i));
-        }
-      }
-    }
-   }
+            for (int i = 0; i < expression.size(); i++) {
+		
+		// If there is a function call in the method of a function.
+                if (expression.get(i).matches("[A-Z]+")) {
+                    ArrayList < String > call = new ArrayList < String > ();
+                    call.add(current);
+                    call.add(expression.get(i));
+                    if (functionCalls.empty()) {
+                        functionCalls.push(call);
+                    } else {
+			// The condition is satisfied when same function call occurs as previously.
+			// It means our program is in the recursive loop, thus it is divergence.
+                        if (functionCalls.search(call) > -1) {
+                            System.out.println("DIVERGENCE");
+                            System.exit(0);
+                        } else {
+                            functionCalls.push(call);
+                        }
+                    }
 
-   public static void finishPostfix(){
-    while(!stack.empty()){
-      postFix.add(stack.pop());
-    }
-   }
+                    List < String > argument = new ArrayList < String > ();
+                    String
+                    function = expression.get(i);
+                    int openbrac = 1;
+                    updatePostfix("(");
+                    int j = i + 2;
+                    while (true) {
+                        if (expression.get(j).equals(")")) {
+                            openbrac--;
+                            if (openbrac == 0) {
+                                break;
+                            }
+                        }
+                        if (expression.get(j).equals("(")) {
+                            openbrac++;
+                        }
+                        argument.add(expression.get(j));
+                        j++;
+                    }
+		    // Function call is parsed and expressionToString is called recursively with
+		    // arithmetic expression that was inside function call as argument.
+                    expressionToString(functionsMap.get(function), argument, function);
+                    i = j;
+                    updatePostfix(")");
+                    functionCalls.pop();
 
-   public static void updatePostfix(String value){
-
-     if (value.matches("[0-9]+")){
-       postFix.add(value);
-     } else {
-      if (value.equals("+") || value.equals("*")){
-
-        if (stack.empty()){
-          stack.push(value);
-
-        } else if (value.equals("*")){
-          stack.push(value);
-
-        } else if (value.equals("+")){
-
-          if (stack.peek().equals("+") || stack.peek().equals("(")){
-            stack.push(value);
-          } else {
-            while(!stack.empty()){
-              if (stack.peek().equals("*")){
-                postFix.add(stack.pop());
-              } else {
-                stack.push(value);
-                break;
-              }
+                } else {
+		    // If next element is not function call, postFix expression is updated.
+                    updatePostfix(expression.get(i));
+                }
             }
-          }
         }
+    }
 
-      } else if (value.equals("(")){
-        stack.push(value);
-      } else if (value.equals(")")){
-        while(!stack.empty()){
-          if (stack.peek().equals("(")){
-            stack.pop();
-            break;
-          } else {
+    // What is left in the stack is moved on the top of postFix expression.
+    public static void finishPostfix() {
+        while (!stack.empty()) {
             postFix.add(stack.pop());
-          }
         }
-      }
-     }
+    }
 
-   }
+    // postFix expression is updated using additional stack data structure.
+    public static void updatePostfix(String value) {
+
+        if (value.matches("[0-9]+")) {
+            postFix.add(value);
+        } else {
+            if (value.equals("+") || value.equals("*")) {
+
+                if (stack.empty()) {
+                    stack.push(value);
+
+                } else if (value.equals("*")) {
+                    stack.push(value);
+
+                } else if (value.equals("+")) {
+
+                    if (stack.peek().equals("+") || stack.peek().equals("(")) {
+                        stack.push(value);
+                    } else {
+                        while (!stack.empty()) {
+                            if (stack.peek().equals("*")) {
+                                postFix.add(stack.pop());
+                            } else {
+                                stack.push(value);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+            } else if (value.equals("(")) {
+                stack.push(value);
+            } else if (value.equals(")")) {
+                while (!stack.empty()) {
+                    if (stack.peek().equals("(")) {
+                        stack.pop();
+                        break;
+                    } else {
+                        postFix.add(stack.pop());
+                    }
+                }
+            }
+        }
+
+    }
 
 }
 
 PARSER_END(Assignment)
+
+// tokens used for matching
 
 TOKEN :{<EOL:"\n"|"\r"|"\r\n">}
 TOKEN: {
@@ -257,6 +284,9 @@ boolean emptyFile():
   {return false;}
 }
 
+// Program entry, if file is empty, exception is thrown else the program is being parsed.
+// On each line it is either MAIN function or any other function.
+
 void StartAnalyzer(): { Token err; }
 {
   {
@@ -277,7 +307,10 @@ void StartAnalyzer(): { Token err; }
     <EOL>
 
   )* <EOF>
-
+  
+  // After all the lines of the program are parsed, it is being checked whether MAIN function exists,
+  // if there are no calls to MAIN function and if there are no calls to non existing functions. Exceptions
+  // are thrown if any of them are not satisfied.
   {
 
     if (!mainExists){
@@ -297,6 +330,9 @@ void StartAnalyzer(): { Token err; }
   }
 }
 
+// MAIN function without arguments is being analysed. New instance of functionsMap created.
+// if MAIN is defined more than once, if there exists a parameter with MAIN or function
+// body is empty, exception is thrown.
 void MainMethod(): {Token mainT;}
 {
   {
@@ -329,7 +365,8 @@ void MainMethod(): {Token mainT;}
 
 }
 
-
+// Non MAIN function, containing the parameter is parsed. new instance of functionsMap is created, 
+// if function is defined more than once or function body is empty, exception is thrown.
 void Method(): { Token parameter, funcName; }
 {
   funcName = <FUNC_NAME>
@@ -357,7 +394,9 @@ void Method(): { Token parameter, funcName; }
   <SPACE> "}" <SPACE> ";"
 }
 
-
+// Body of function is being parsed while updating the functionsMap with the string of the function body
+// for respective function. If there's an argument for MAIN function or parameter in the function body
+// is different from argument with the function, then excpetion is thrown.
 void MethodBody(Token parameter, Token funcName): {Token arg, num, callname, open, add, mul, close;}
 {
   (
@@ -422,6 +461,7 @@ void MethodBody(Token parameter, Token funcName): {Token arg, num, callname, ope
 
 }
 
+// Method to update functionsMap structure.
 void updateMap(Token name, Token val): {}
 {
   {
@@ -429,6 +469,7 @@ void updateMap(Token name, Token val): {}
   }
 }
 
+// Function calls are updated in callExists.
 void updateCall(Token name, int lineNumber): {}
 {
   {
